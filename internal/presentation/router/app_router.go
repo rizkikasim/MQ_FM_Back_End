@@ -4,9 +4,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	// --- AUTH ---
-	// --- PODCAST CATEGORIES ---
-	// --- MIDDLEWARE & DB ---
 
 	"github.com/joho/godotenv"
 
@@ -30,10 +27,9 @@ import (
 
 )
 
-func SetupAppRouter() *http.ServeMux {
-	// 🔹 load env
+func SetupAppRouter() http.Handler {
 	if err := godotenv.Load("env_staging.env"); err != nil {
-		log.Fatalf("❌ Gagal load env file: %v", err)
+		log.Fatalf("Gagal load env file: %v", err)
 	}
 
 	dbUser := os.Getenv("DB_USER")
@@ -42,48 +38,39 @@ func SetupAppRouter() *http.ServeMux {
 	dbName := os.Getenv("DB_NAME")
 	jwtSecret := os.Getenv("JWT_SECRET")
 
-	// 🔹 koneksi ke database
 	db, err := database.NewMySQLConnection(dbUser, dbPass, dbHost, dbName)
 	if err != nil {
-		log.Fatalf("❌ Gagal konek database: %v", err)
+		log.Fatalf("Gagal konek database: %v", err)
 	}
 
-	// ---------------- AUTH ADMIN ----------------
 	adminRepo := authadminrepository.NewMySQLAuthAdminRepository(db)
 	adminService := authadminservice.NewAuthAdminService(adminRepo, jwtSecret)
 	adminUsecase := authadminusecase.NewAuthAdminUsecase(adminService)
 	adminController := authadmincontroller.NewAuthAdminController(adminUsecase, adminRepo)
 
-	// ---------------- AUTH USER ----------------
 	userRepo := authuserrepository.NewMySQLAuthUserRepository(db)
 	userService := authuserservice.NewAuthUserService(userRepo, jwtSecret)
 	userUsecase := authuserusecase.NewAuthUserUsecase(userService)
 	userController := authusercontroller.NewAuthUserController(userUsecase, userRepo)
 
-	// ---------------- PODCAST CATEGORIES (UNIVERSAL TABLE) ----------------
 	catRepo := categoriesadminrepository.NewMySQLCategoriesAdminRepository(db)
-
-	// admin layer
 	catAdminService := categoriesadminservice.NewCategoriesAdminService(catRepo)
 	catAdminUsecase := categoriesadminusecase.NewCategoriesAdminUsecase(catAdminService)
 	catAdminController := categoriesadmincontroller.NewCategoriesAdminController(catAdminUsecase)
 
-	// user layer (read-only)
 	catUserRepo := categoriesuserrepository.NewMySQLCategoriesUserRepository(db)
 	catUserService := categoriesuserservice.NewCategoriesUserService(catUserRepo)
 	catUserController := categoriesusercontroller.NewCategoriesUserController(catUserService)
 
-	// ---------------- ROUTER SETUP ----------------
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("🚀 MQFM Backend API (staging) is running"))
+		w.Write([]byte("MQFM Backend API (staging) is running"))
 	})
 
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/",
 		http.FileServer(http.Dir("./storage/uploads"))))
 
-	// ---------------- AUTH ADMIN ROUTES ----------------
 	mux.HandleFunc("/api/v1/auth/admin/register", adminController.Register)
 	mux.HandleFunc("/api/v1/auth/admin/login", adminController.Login)
 	mux.HandleFunc("/api/v1/auth/admin/me", adminController.Me)
@@ -91,7 +78,6 @@ func SetupAppRouter() *http.ServeMux {
 	mux.HandleFunc("/api/v1/auth/admin/delete", adminController.DeleteAccount)
 	mux.HandleFunc("/api/v1/auth/admin/logout", adminController.Logout)
 
-	// ---------------- AUTH USER ROUTES ----------------
 	mux.HandleFunc("/api/v1/auth/user/register", userController.Register)
 	mux.HandleFunc("/api/v1/auth/user/login", userController.Login)
 	mux.HandleFunc("/api/v1/auth/user/me", userController.Me)
@@ -99,7 +85,6 @@ func SetupAppRouter() *http.ServeMux {
 	mux.HandleFunc("/api/v1/auth/user/delete", userController.DeleteAccount)
 	mux.HandleFunc("/api/v1/auth/user/logout", userController.Logout)
 
-	// ---------------- PODCAST CATEGORIES (ADMIN CRUD - pakai token) ----------------
 	mux.HandleFunc("/api/v1/podcast/admin/categories/create",
 		middleware.AdminAuthMiddleware(adminService, catAdminController.Create))
 	mux.HandleFunc("/api/v1/podcast/admin/categories/update",
@@ -111,11 +96,10 @@ func SetupAppRouter() *http.ServeMux {
 	mux.HandleFunc("/api/v1/podcast/admin/categories/detail",
 		middleware.AdminAuthMiddleware(adminService, catAdminController.GetByID))
 
-	// ---------------- PODCAST CATEGORIES (USER - read only, pakai token user) ----------------
 	mux.HandleFunc("/api/v1/podcast/user/categories/all",
 		middleware.UserAuthMiddleware(userService, catUserController.GetAll))
 	mux.HandleFunc("/api/v1/podcast/user/categories/detail",
 		middleware.UserAuthMiddleware(userService, catUserController.GetByID))
 
-	return mux
+	return middleware.WrapWithCORS(mux)
 }

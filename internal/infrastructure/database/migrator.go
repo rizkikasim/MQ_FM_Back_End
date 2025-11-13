@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/golang-migrate/migrate/v4"
@@ -22,11 +24,17 @@ func RunMigrations() {
 	dbHost := os.Getenv("DB_HOST")
 	dbName := os.Getenv("DB_NAME")
 
-	// pastikan path absolut supaya bisa ditemukan
-	root, _ := os.Getwd()
-	migrationsPath := fmt.Sprintf("file://%s/internal/migrations", root)
+root, _ := os.Getwd()
+migrationsDir := filepath.Join(root, "internal", "migrations")
 
-	// encode password biar aman dari karakter khusus
+// Windows: migrate pakai forward slash TANPA tiga slash
+migrationsDir = strings.ReplaceAll(migrationsDir, "\\", "/")
+
+// Windows: format URI harus "file://C:/path"
+migrationsPath := fmt.Sprintf("file://%s", migrationsDir)
+
+
+	// Buat DSN untuk koneksi ke MySQL
 	dsn := fmt.Sprintf("mysql://%s:%s@tcp(%s)/%s?multiStatements=true",
 		dbUser, dbPass, dbHost, dbName)
 
@@ -41,7 +49,6 @@ func RunMigrations() {
 
 	log.Println("✅ Migrasi database berhasil atau sudah up-to-date")
 }
-
 
 // RefreshMigrations menghapus semua tabel & migrasi ulang dari awal
 func RefreshMigrations() {
@@ -59,10 +66,9 @@ func RefreshMigrations() {
 	}
 	defer db.Close()
 
-	_, _ = db.Exec("DROP TABLE IF EXISTS admins, schema_migrations")
+	_, _ = db.Exec("DROP TABLE IF EXISTS schema_migrations")
 
 	log.Println("🗑️  Semua tabel dihapus, menjalankan migrasi ulang...")
 
 	RunMigrations()
 }
-
