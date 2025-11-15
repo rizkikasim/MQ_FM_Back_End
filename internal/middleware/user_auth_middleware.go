@@ -10,8 +10,40 @@ import (
 
 )
 
-// ---------------- USER AUTH MIDDLEWARE ----------------
-// memastikan hanya user terautentikasi yang bisa akses endpoint.
+/*
+===================================================
+🔥 CORS MIDDLEWARE — FIX untuk Browser + Ngrok
+===================================================
+*/
+func UserCORSMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+
+        // tambahkan ngrok-skip-browser-warning
+        w.Header().Set("Access-Control-Allow-Headers",
+            "Content-Type, Authorization, X-Requested-With, Accept, ngrok-skip-browser-warning")
+
+        w.Header().Set("Access-Control-Allow-Methods",
+            "GET, POST, PUT, DELETE, OPTIONS")
+
+        w.Header().Set("Access-Control-Expose-Headers", "*")
+
+        if r.Method == http.MethodOptions {
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+
+        next.ServeHTTP(w, r)
+    })
+}
+
+
+/*
+===================================================
+🔥 USER AUTH MIDDLEWARE
+===================================================
+*/
 func UserAuthMiddleware(authSvc *authuserservice.AuthUserService, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
@@ -32,7 +64,7 @@ func UserAuthMiddleware(authSvc *authuserservice.AuthUserService, next http.Hand
 			return
 		}
 
-		// ✅ token valid → lanjut ke handler berikutnya
+		// Token valid → lanjut
 		next(w, r)
 	}
 }

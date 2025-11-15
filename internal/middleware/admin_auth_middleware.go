@@ -10,22 +10,25 @@ import (
 
 )
 
-// ===================================================
-// 🔥 CORS MIDDLEWARE — WAJIB untuk React/Browser
-// ===================================================
+/*
+===================================================
+🔥 ADMIN CORS MIDDLEWARE — FIX TOTAL NGROK + BROWSER
+===================================================
+*/
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		// Izinkan akses dari mana saja (gampangin dulu)
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		// Header yang boleh dipakai client
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+		w.Header().Set("Access-Control-Allow-Headers",
+			"Content-Type, Authorization, X-Requested-With, Accept, ngrok-skip-browser-warning",
+		)
 
-		// Metode yang diizinkan
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods",
+			"GET, POST, PUT, DELETE, OPTIONS")
 
-		// Preflight request dari browser
+		w.Header().Set("Access-Control-Expose-Headers", "*")
+
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -35,11 +38,15 @@ func CORSMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// ===================================================
-// 🔥 ADMIN AUTH MIDDLEWARE
-// ===================================================
+
+/*
+===================================================
+🔥 ADMIN AUTH MIDDLEWARE (Token Guard)
+===================================================
+*/
 func AdminAuthMiddleware(authSvc *authadminservice.AuthAdminService, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			errorinterceptor.ErrorInterceptor(w, r, errors.New("token tidak ditemukan"), http.StatusUnauthorized, 0)
@@ -58,7 +65,6 @@ func AdminAuthMiddleware(authSvc *authadminservice.AuthAdminService, next http.H
 			return
 		}
 
-		// Token valid → lanjut
 		next(w, r)
 	}
 }
